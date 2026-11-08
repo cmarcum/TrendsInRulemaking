@@ -1,0 +1,89 @@
+name: Refresh and deploy
+
+on:
+  schedule:
+    - cron: "17 8 * * 0"
+    - cron: "17 9 * * 1-6"
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: Re-pull the whole Spicy Regs mirror and the raw Mirrulations bucket first (about 30 minutes)
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - analysis/**
+      - scripts/build_site.py
+      - .github/workflows/refresh.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+env:
+  FULL_REFRESH: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_refresh) || github.event.schedule == '17 8 * * 0' }}
+  REFRESH: ${{ github.event_name != 'push' }}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Full re-pull of the mirror and the raw bucket
+        if: env.FULL_REFRESH == 'true'
+        run: |
+          python scripts/fetch_mirror.py --fetch
+          python scripts/topup_from_mirrulations.py
+
+      - name: Refresh open and recently closed dockets from the API
+        if: env.REFRESH == 'true'
+        env:
+          REGSGOV_API_KEY: ${{ secrets.REGSGOV_API_KEY }}
+        run: python scripts/topup_open_dockets.py
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: any::data.table
+
+      - name: Analysis tables
+        run: Rscript analysis/analyze_rulemaking_trends.R --site-only
+
+      - name: Build the page
+        run: python scripts/build_site.py
+
+      - name: Save the refreshed data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "no data changes"
+          else
+            git commit -m "Refresh data [skip ci]"
+            git push
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main --commit-dirty=true

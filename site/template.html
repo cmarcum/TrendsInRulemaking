@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>All Rulemaking Dockets by Published Comments</title>
+<style>
+  body { margin: 0; }
+  .tir-root {
+    --bg: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --hover: #f1f0ec; --focus: #2a78d6;
+    --e0: #86b6ef; --e1: #3987e5; --e2: #1c5cab; --e3: #0d366b; --open: #1a7f4b;
+    box-sizing: border-box; max-width: 960px; margin: 0 auto; padding: 20px 16px 24px;
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    .tir-root {
+      --bg: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --hover: #242422; --focus: #6da7ec;
+      --e0: #184f95; --e1: #256abf; --e2: #3987e5; --e3: #6da7ec; --open: #4cc38a;
+    }
+  }
+  .tir-root *, .tir-root *::before, .tir-root *::after { box-sizing: border-box; }
+  .tir-root h2 { margin: 0 0 6px; font-size: 1.35rem; line-height: 1.25; }
+  .tir-sub { margin: 0 0 16px; color: var(--ink2); }
+  .tir-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .tir-controls input, .tir-controls select, .tir-pager input {
+    font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--muted); border-radius: 6px; padding: 6px 10px; min-height: 36px;
+  }
+  .tir-controls input { flex: 1 1 100%; min-width: 0; }
+  .tir-controls select { flex: 1 1 150px; min-width: 0; max-width: 100%; }
+  .tir-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 10px; color: var(--ink2); font-size: .85rem; }
+  .tir-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .tir-legend i { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+  .tir-legend i.dot { width: 10px; border-radius: 50%; background: var(--open); }
+  .tir-legend [hidden] { display: none; }
+  .tir-summary { margin: 0 0 6px; color: var(--ink2); font-size: .85rem; min-height: 1.3em; }
+  .tir-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--grid); }
+  .tir-list li { border-bottom: 1px solid var(--grid); }
+  .tir-row {
+    display: grid; grid-template-columns: 3.6rem minmax(0, 1fr) minmax(0, 42%);
+    gap: 4px 12px; align-items: center; padding: 8px 6px; color: inherit; text-decoration: none;
+  }
+  .tir-row.is-open { box-shadow: inset 3px 0 0 var(--open); }
+  .tir-flag {
+    display: inline-block; color: var(--open); border: 1px solid var(--open); border-radius: 999px;
+    padding: 0 7px; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap;
+  }
+  .tir-recv { color: var(--ink2); font-size: .74rem; white-space: nowrap; }
+  .tir-row:hover { background: var(--hover); }
+  .tir-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .tir-rank { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; font-size: .85rem; }
+  .tir-title { display: -webkit-box; font-weight: 600; overflow: hidden;
+               -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+  .tir-row:hover .tir-title { text-decoration: underline; }
+  .tir-meta { display: block; color: var(--ink2); font-size: .8rem; }
+  .tir-bar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .tir-fill { height: 12px; min-width: 2px; border-radius: 0 4px 4px 0; flex: none; }
+  .tir-fill.zero { min-width: 0; width: 0 !important; }
+  .tir-val { color: var(--ink2); font-size: .85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .e0 { background: var(--e0); } .e1 { background: var(--e1); }
+  .e2 { background: var(--e2); } .e3 { background: var(--e3); }
+  .tir-empty { padding: 16px 6px; color: var(--ink2); }
+  .tir-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; color: var(--ink2); font-size: .9rem; }
+  .tir-pager button {
+    font: inherit; color: var(--ink); background: var(--bg); min-height: 36px;
+    border: 1px solid var(--muted); border-radius: 6px; padding: 6px 14px; cursor: pointer;
+  }
+  .tir-pager button:hover:not(:disabled) { background: var(--hover); }
+  .tir-pager button:disabled { opacity: .45; cursor: default; }
+  .tir-pager input { width: 5.5rem; text-align: center; padding: 6px 4px; }
+  .tir-pager :focus-visible, .tir-controls :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .tir-foot { margin: 14px 0 0; color: var(--muted); font-size: .78rem; }
+  .tir-foot a { color: inherit; }
+  .tir-tip {
+    position: fixed; z-index: 10; pointer-events: none; max-width: 320px; padding: 8px 10px;
+    background: var(--ink); color: var(--bg); border-radius: 6px; font-size: .8rem; line-height: 1.4;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .tir-tip b { display: block; margin-bottom: 2px; }
+  @media (max-width: 560px) {
+    .tir-row { grid-template-columns: 2.8rem minmax(0, 1fr); }
+    .tir-bar { grid-column: 2; }
+  }
+</style>
+</head>
+<body>
+<section class="tir-root" aria-labelledby="tir-h">
+  <h2 id="tir-h">All __N__ rulemaking dockets, ranked by published comments</h2>
+  <p class="tir-sub">Comments posted on regulations.gov, not comments submitted. Select a docket to open it on regulations.gov. Dockets with equal counts share a rank.</p>
+
+  <div class="tir-controls">
+    <input id="tir-q" type="search" placeholder="Search title, agency or docket ID" aria-label="Search dockets">
+    <select id="tir-agency" aria-label="Filter by agency"></select>
+    <select id="tir-year" aria-label="Filter by year docket opened"></select>
+    <select id="tir-min" aria-label="Minimum published comments">
+      <option value="0">Any number of comments</option>
+      <option value="1">1 or more</option>
+      <option value="10">10 or more</option>
+      <option value="100">100 or more</option>
+      <option value="1000">1,000 or more</option>
+      <option value="10000">10,000 or more</option>
+      <option value="100000">100,000 or more</option>
+    </select>
+    <select id="tir-sort" aria-label="Sort dockets">
+      <option value="rank">Most comments</option>
+      <option value="new">Newest docket first</option>
+      <option value="old">Oldest docket first</option>
+    </select>
+    <select id="tir-scale" aria-label="Bar scale">
+      <option value="log">Bar scale: logarithmic</option>
+      <option value="lin">Bar scale: linear</option>
+    </select>
+  </div>
+
+  <div class="tir-legend" aria-label="Bar color shows the year the docket opened">
+    <span>Year docket opened:</span>
+    <span><i class="e0"></i>2009 or earlier</span>
+    <span><i class="e1"></i>2010–2014</span>
+    <span><i class="e2"></i>2015–2019</span>
+    <span><i class="e3"></i>2020 or later</span>
+    <span id="tir-open-key" hidden><i class="dot"></i>Open for comment</span>
+  </div>
+
+  <p class="tir-summary" id="tir-summary" aria-live="polite"></p>
+  <ol class="tir-list" id="tir-list"></ol>
+  <div class="tir-pager" id="tir-pager">
+    <button type="button" id="tir-prev">Previous</button>
+    <span>Page <input id="tir-page" type="number" min="1" value="1" aria-label="Page number"> of <span id="tir-pages"></span></span>
+    <button type="button" id="tir-next">Next</button>
+  </div>
+
+  <p class="tir-foot">
+    Source: the <a href="https://github.com/civictechdc/spicy-regs" target="_blank" rel="noopener noreferrer">Spicy Regs</a>
+    mirror of regulations.gov, through __ASOF__. Counts are published comment records on each docket;
+    agencies decide what they post, and mass-comment campaigns count once per posted comment.
+    A docket with zero has no published comments in the mirror. Year opened comes from the docket ID.
+    __OPEN_NOTE__
+  </p>
+  <div class="tir-tip" id="tir-tip" role="tooltip" hidden></div>
+</section>
+
+<script id="tir-data" type="application/json">__DATA__</script>
+<script>
+(function () {
+  const PAGE = 50;
+  const $ = (id) => document.getElementById(id);
+  const list = $('tir-list'), tip = $('tir-tip');
+  const fmt = (n) => n.toLocaleString('en-US');
+  const era = (y) => (y >= 2020 ? 3 : y >= 2015 ? 2 : y >= 2010 ? 1 : 0);
+  // Row layout: [rank, id, title, agency, year, comments, firstPosted, lastPosted, commentEndDate, received]
+  const DATA = JSON.parse($('tir-data').textContent).map((r) => ({
+    rank: r[0], id: r[1], title: r[2], agency: r[3], year: r[4], n: r[5], first: r[6], last: r[7],
+    open: r[8] || '', received: r[9] || 0,
+    hay: (r[2] + ' ' + r[1] + ' ' + r[3]).toLowerCase(),
+  }));
+  const now = new Date();
+  const todayISO = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0');
+  const isOpen = (d) => !!d.open && d.open >= todayISO;
+  const closes = (iso) => {
+    const [y, m, day] = iso.split('-').map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  $('tir-open-key').hidden = !DATA.some(isOpen);
+  const max = DATA.reduce((m, d) => Math.max(m, d.n), 1);
+  const grandTotal = DATA.reduce((s, d) => s + d.n, 0);
+  const logMax = Math.log10(max + 1);
+  let page = 1, rows = DATA, pages = 1;
+
+  function fill(sel, first, entries) {
+    sel.add(new Option(first, ''));
+    entries.forEach(([v, label]) => sel.add(new Option(label, v)));
+  }
+  const byAgency = {}, byYear = {};
+  DATA.forEach((d) => {
+    byAgency[d.agency] = (byAgency[d.agency] || 0) + 1;
+    byYear[d.year] = (byYear[d.year] || 0) + 1;
+  });
+  fill($('tir-agency'), 'All agencies', Object.keys(byAgency)
+    .sort((a, b) => a.localeCompare(b))
+    .map((a) => [a, a + ' (' + fmt(byAgency[a]) + ')']));
+  fill($('tir-year'), 'Any year opened', Object.keys(byYear).map(Number)
+    .sort((a, b) => b - a)
+    .map((y) => [String(y), (y || 'Unknown') + ' (' + fmt(byYear[y]) + ')']));
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function row(d, scale) {
+    const li = el('li');
+    const a = el('a', 'tir-row');
+    a.href = 'https://www.regulations.gov/docket/' + encodeURIComponent(d.id);
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.dataset.i = d.rank + '|' + d.id;
+    if (isOpen(d)) a.classList.add('is-open');
+    a.append(el('span', 'tir-rank', fmt(d.rank)));
+    const main = el('span');
+    main.append(el('span', 'tir-title', d.title || d.id));
+    const meta = el('span', 'tir-meta', d.id + ' · ' + d.agency + (d.year ? ' · opened ' + d.year : ''));
+    if (isOpen(d)) meta.append(' ', el('span', 'tir-flag', 'Open · closes ' + closes(d.open)));
+    if (isOpen(d) && d.received) meta.append(' ', el('span', 'tir-recv', fmt(d.received) + ' received'));
+    main.append(meta);
+    a.append(main);
+    const bar = el('span', 'tir-bar');
+    const f = el('span', 'tir-fill e' + era(d.year) + (d.n ? '' : ' zero'));
+    const frac = scale === 'log' ? Math.log10(d.n + 1) / logMax : d.n / max;
+    f.style.width = (frac * 80) + '%';
+    bar.append(f, el('span', 'tir-val', fmt(d.n)));
+    a.append(bar);
+    li.append(a);
+    return li;
+  }
+
+  function filterSort() {
+    const q = $('tir-q').value.trim().toLowerCase();
+    const ag = $('tir-agency').value, yr = $('tir-year').value;
+    const min = Number($('tir-min').value), sort = $('tir-sort').value;
+    rows = DATA.filter((d) =>
+      (!ag || d.agency === ag) && (!yr || String(d.year) === yr) &&
+      d.n >= min && (!q || d.hay.includes(q)));
+    // Unknown years (0) sort last either way.
+    if (sort === 'new') rows = rows.slice().sort((a, b) => (b.year || -1) - (a.year || -1) || b.n - a.n);
+    if (sort === 'old') rows = rows.slice().sort((a, b) => (a.year || 1e9) - (b.year || 1e9) || b.n - a.n);
+    pages = Math.max(1, Math.ceil(rows.length / PAGE));
+    page = 1;
+  }
+
+  function render() {
+    page = Math.min(Math.max(1, page), pages);
+    const scale = $('tir-scale').value;
+    const start = (page - 1) * PAGE;
+    const shown = rows.slice(start, start + PAGE);
+    list.replaceChildren(...shown.map((d) => row(d, scale)));
+    if (!rows.length) list.append(el('li', 'tir-empty', 'No dockets match.'));
+    const sum = rows.reduce((s, d) => s + d.n, 0);
+    const filtered = rows.length !== DATA.length;
+    const pct = 100 * sum / grandTotal;
+    $('tir-summary').textContent = fmt(rows.length) + (filtered ? ' matching' : '') +
+      (rows.length === 1 ? ' docket · ' : ' dockets · ') +
+      fmt(sum) + ' published comments' +
+      (filtered ? ' (' + (pct < 0.1 && sum ? 'under 0.1' : pct.toFixed(1)) + '% of all)' : '') +
+      (rows.length ? ' · showing ' + fmt(start + 1) + '–' + fmt(start + shown.length) : '');
+    $('tir-pages').textContent = fmt(pages);
+    $('tir-page').value = page;
+    $('tir-page').max = pages;
+    $('tir-prev').disabled = page <= 1;
+    $('tir-next').disabled = page >= pages;
+    $('tir-pager').hidden = pages <= 1;
+    notifyHeight();
+  }
+
+  function refresh() { filterSort(); render(); }
+  function go(p) {
+    page = p; render();
+    $('tir-summary').scrollIntoView({ block: 'start' });
+  }
+
+  // Tooltip (pointer devices); the meta line already carries the essentials.
+  const index = new Map(DATA.map((d) => [d.rank + '|' + d.id, d]));
+  list.addEventListener('mousemove', (e) => {
+    const a = e.target.closest('.tir-row');
+    if (!a) { tip.hidden = true; return; }
+    const d = index.get(a.dataset.i);
+    tip.replaceChildren(
+      el('b', null, d.title || d.id),
+      el('span', null, fmt(d.n) + ' published comments' +
+        (d.n ? ' (' + (100 * d.n / grandTotal).toFixed(2) + '% of all)' : '')),
+      el('br'),
+      el('span', null, d.first ? 'Posted ' + d.first + (d.last !== d.first ? ' to ' + d.last : '') : 'No published comments'),
+      el('br'),
+      ...(isOpen(d) ? [el('span', null, 'Comment period open until ' + closes(d.open)), el('br')] : []),
+      ...(isOpen(d) && d.received ? [el('span', null, fmt(d.received) + ' received so far (includes comments not yet posted)'), el('br')] : []),
+      el('span', null, 'Opens regulations.gov docket ' + d.id)
+    );
+    tip.hidden = false;
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(e.clientX + 14, window.innerWidth - w - 8)) + 'px';
+    tip.style.top = (e.clientY + 18 + h > window.innerHeight ? e.clientY - h - 12 : e.clientY + 18) + 'px';
+  });
+  list.addEventListener('mouseleave', () => { tip.hidden = true; });
+
+  let timer;
+  $('tir-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(refresh, 150); });
+  ['tir-agency', 'tir-year', 'tir-min', 'tir-sort'].forEach((id) => $(id).addEventListener('change', refresh));
+  $('tir-scale').addEventListener('change', render);
+  $('tir-prev').addEventListener('click', () => go(page - 1));
+  $('tir-next').addEventListener('click', () => go(page + 1));
+  $('tir-page').addEventListener('change', (e) => {
+    const p = parseInt(e.target.value, 10);
+    go(Number.isFinite(p) ? p : page);
+  });
+
+  // Lets a blog embed this page in an iframe and size it to fit.
+  function notifyHeight() {
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'tir-height', height: document.documentElement.scrollHeight }, '*');
+    }
+  }
+  window.addEventListener('resize', notifyHeight);
+  refresh();
+})();
+</script>
+</body>
+</html>
