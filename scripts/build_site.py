@@ -9,6 +9,7 @@ Inputs
   build/data_exclusions.csv             from the same run (footer text)
   data/_open_dockets.csv                from scripts/topup_open_dockets.py
   data/_api_topup_scan.csv              same (decides whether the footer mentions the API check)
+  data/_docket_dates.csv                from scripts/docket_dates.py (orders dockets within a year)
   site/template.html                    the page; __DATA__, __ASOF__, __N__ and
                                         __OPEN_NOTE__ are filled in
 
@@ -72,7 +73,29 @@ def open_note(ranked, data_dir):
     return note
 
 
+def docket_dates(data_dir):
+    path = os.path.join(data_dir, "_docket_dates.csv")
+    if not os.path.exists(path):
+        return {}
+    x = pd.read_csv(path, dtype=str)
+    return dict(zip(x["docket_id"], x["first_document_posted"]))
+
+
+def sort_date(docket_id, year, dates):
+    """Date to order a docket by within the opening year in its ID: the date of its earliest document
+    when that falls in the same year, otherwise the start or end of that year, mid-year if undated.
+    Empty when the docket has no year, so it sorts last."""
+    if not year:
+        return ""
+    first = dates.get(docket_id)
+    if isinstance(first, str) and len(first) >= 10:
+        y = int(first[:4])
+        return first if y == year else (f"{year}-01-01" if y < year else f"{year}-12-31")
+    return f"{year}-07-01"
+
+
 def build(ranked, template, build_dir, data_dir):
+    dates = docket_dates(data_dir)
     rank = ranked["published_comments"].rank(method="min", ascending=False).astype(int)
     rows = []
     for rk, r in zip(rank, ranked.itertuples(index=False)):
@@ -87,6 +110,7 @@ def build(ranked, template, build_dir, data_dir):
             str(r.last_posted)[:10] if isinstance(r.last_posted, str) else "",
             end_date(getattr(r, "comment_end_date", None)),
             received(getattr(r, "comments_received", None)),
+            sort_date(r.docket_id, int(r.docket_year) if r.docket_year == r.docket_year else 0, dates),
         ])
     asof = str(ranked["last_posted"].dropna().max())[:10]
     with open(template, encoding="utf-8") as f:

@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>All Rulemaking Dockets by Published Comments</title>
 <style>
-  body { margin: 0; }
+  html { background: #fcfcfb; color-scheme: light dark; }
+  body { margin: 0; background: #fcfcfb; }
   .tir-root {
     --bg: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
     --grid: #e1e0d9; --hover: #f1f0ec; --focus: #2a78d6;
@@ -15,6 +16,7 @@
     font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
+    html, body { background: #1a1a19; }
     .tir-root {
       --bg: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
       --grid: #2c2c2a; --hover: #242422; --focus: #6da7ec;
@@ -150,10 +152,10 @@
   const list = $('tir-list'), tip = $('tir-tip');
   const fmt = (n) => n.toLocaleString('en-US');
   const era = (y) => (y >= 2020 ? 3 : y >= 2015 ? 2 : y >= 2010 ? 1 : 0);
-  // Row layout: [rank, id, title, agency, year, comments, firstPosted, lastPosted, commentEndDate, received]
+  // Row layout: [rank, id, title, agency, year, comments, firstPosted, lastPosted, commentEndDate, received, sortDate]
   const DATA = JSON.parse($('tir-data').textContent).map((r) => ({
     rank: r[0], id: r[1], title: r[2], agency: r[3], year: r[4], n: r[5], first: r[6], last: r[7],
-    open: r[8] || '', received: r[9] || 0,
+    open: r[8] || '', received: r[9] || 0, date: r[10] || '',
     hay: (r[2] + ' ' + r[1] + ' ' + r[3]).toLowerCase(),
   }));
   const now = new Date();
@@ -226,9 +228,10 @@
     rows = DATA.filter((d) =>
       (!ag || d.agency === ag) && (!yr || String(d.year) === yr) &&
       d.n >= min && (!q || d.hay.includes(q)));
-    // Unknown years (0) sort last either way.
-    if (sort === 'new') rows = rows.slice().sort((a, b) => (b.year || -1) - (a.year || -1) || b.n - a.n);
-    if (sort === 'old') rows = rows.slice().sort((a, b) => (a.year || 1e9) - (b.year || 1e9) || b.n - a.n);
+    // Unknown years (no date) sort last either way.
+    const unknown = (a, b) => (!a.date) - (!b.date);
+    if (sort === 'new') rows = rows.slice().sort((a, b) => unknown(a, b) || b.date.localeCompare(a.date) || b.n - a.n);
+    if (sort === 'old') rows = rows.slice().sort((a, b) => unknown(a, b) || a.date.localeCompare(b.date) || b.n - a.n);
     pages = Math.max(1, Math.ceil(rows.length / PAGE));
     page = 1;
   }

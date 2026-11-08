@@ -11,6 +11,7 @@ The data comes from the [Spicy Regs](https://github.com/civictechdc/spicy-regs) 
 scripts/fetch_mirror.py         full pull of the mirror into data/ (also --verify against the API)
 scripts/topup_from_mirrulations.py   comments in the raw bucket the mirror lacks
 scripts/topup_open_dockets.py   open, recently closed and new dockets from the API
+scripts/docket_dates.py         earliest document date per docket, for the newest/oldest sort
 scripts/build_site.py           data + template -> dist/index.html
 analysis/analyze_rulemaking_trends.R   all analysis, tables, figures and power-law fits
 site/template.html              the page
@@ -25,6 +26,7 @@ dist/                           not tracked: the site that gets deployed
 pip install -r requirements.txt
 export REGSGOV_API_KEY=...        # PowerShell: $env:REGSGOV_API_KEY = "..."
 python scripts/topup_open_dockets.py
+python scripts/docket_dates.py
 Rscript analysis/analyze_rulemaking_trends.R --site-only
 python scripts/build_site.py      # open dist/index.html
 ```
