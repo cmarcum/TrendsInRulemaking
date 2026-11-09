@@ -114,7 +114,7 @@ def build(ranked, template, build_dir, data_dir):
             received(getattr(r, "comments_received", None)),
             sort_date(r.docket_id, int(r.docket_year) if r.docket_year == r.docket_year else 0, dates),
         ])
-    asof = str(ranked["last_posted"].dropna().max())[:10]
+    asof = datetime.date.fromisoformat(str(ranked["last_posted"].dropna().max())[:10]).strftime("%B %d, %Y")
     with open(template, encoding="utf-8") as f:
         html = f.read()
     payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
