@@ -5,8 +5,9 @@ opt <- function(flag, default) {
   i <- match(flag, args)
   if (is.na(i) || i == length(args)) default else args[i + 1L]
 }
-data_dir <- opt("--data", "data")
-out_dir <- opt("--out", "build")
+at_root <- dir.exists("data")
+data_dir <- opt("--data", if (at_root) "data" else "../data")
+out_dir <- opt("--out", if (at_root) "build" else "../build")
 site_only <- "--site-only" %in% args
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 chart_from <- as.integer(opt("--chart-from", 1994))
@@ -255,7 +256,6 @@ vol <- melt(by[, .(posted_year, partial_year,
                    `Ten largest dockets that year` = top10_comments)],
             id.vars = c("posted_year", "partial_year"), variable.name = "group", value.name = "n")
 vol[, group := factor(group, levels = c("Ten largest dockets that year", "All other dockets"))]
-peak <- by[which.max(published_comments)]
 ytd <- by[posted_year == THIS_YEAR]
 
 f1_top <- ggplot(vol, aes(posted_year, n, fill = group, alpha = partial_year)) +
@@ -263,9 +263,6 @@ f1_top <- ggplot(vol, aes(posted_year, n, fill = group, alpha = partial_year)) +
   scale_fill_manual(values = c("Ten largest dockets that year" = ORANGE, "All other dockets" = BLUE)) +
   scale_alpha_manual(values = c("FALSE" = 1, "TRUE" = 0.5), guide = "none") +
   guides(fill = guide_legend(reverse = TRUE)) +
-  annotate("text", x = peak$posted_year - 0.35, y = peak$published_comments, hjust = 1, vjust = -0.4,
-           colour = INK2, size = 3.2,
-           label = sprintf("%sM in %d", signif(peak$published_comments / 1e6, 3), peak$posted_year)) +
   scale_x_continuous(limits = c(chart_from - 0.8, THIS_YEAR + 0.8), breaks = x_breaks, expand = c(0, 0)) +
   scale_y_continuous(labels = fmt_si, expand = expansion(mult = c(0, 0.1))) +
   ggtitle("Published comments on rulemaking dockets, by year posted") +
@@ -531,5 +528,3 @@ f4_right <- ggplot(alpha_years, aes(docket_year, alpha)) +
 
 fig4 <- (f4_left | f4_right) + plot_annotation(theme = caption_theme)
 save_png(fig4, "fig4_power_law.png", 11.5, 4.6)
-
-cat("\nwrote CSVs, fig1-fig4 and power-law fits to", out_dir, "\n")
