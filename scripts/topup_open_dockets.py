@@ -75,6 +75,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -155,18 +156,35 @@ def find_new_rulemaking(con, dockets_pq, docs, known, key):
     return pd.concat([found, pd.DataFrame(rows, columns=found.columns)], ignore_index=True)
 
 
+RESERVE = 10
+out_of_budget = threading.Event()
+
+
+def note_budget(headers):
+    """Stop asking once the key's hourly allowance is nearly spent; the next run picks up what is left."""
+    try:
+        if int(headers.get("X-Ratelimit-Remaining")) <= RESERVE:
+            out_of_budget.set()
+    except (TypeError, ValueError):
+        pass
+
+
 def api_get(path, params, key, retries=4):
-    """Parsed JSON, or None if the API has nothing usable for this request."""
+    """Parsed JSON, or None if the API has nothing usable for this request (or the hourly budget is spent)."""
     url = API + path + (("?" + urllib.parse.urlencode(params)) if params else "")
     for attempt in range(retries):
+        if out_of_budget.is_set():
+            return None
         req = urllib.request.Request(url, headers={"X-Api-Key": key})
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
+                note_budget(r.headers)
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                time.sleep(int(e.headers.get("Retry-After") or 0) or 120)
-                continue
+                out_of_budget.set()
+                return None
+            note_budget(e.headers)
             if e.code in (401, 403):
                 sys.exit(f"the API rejected the key (HTTP {e.code})")
             if e.code == 404:
@@ -265,7 +283,9 @@ def main():
     have = totals.groupby("docket_id")["published_comments"].sum()
 
     added_since_pull = set(pd.read_csv(extra, dtype=str, usecols=["docket_id"])["docket_id"]) if os.path.exists(extra) else set()
-    targets = sorted((set(opened["docket_id"]) | set(closed) | set(previous["docket_id"]) | added_since_pull) - skip)
+    wanted = (set(opened["docket_id"]) | set(closed) | set(previous["docket_id"]) | added_since_pull) - skip
+    ends = dict(zip(opened["docket_id"], opened["comment_end_date"]))
+    targets = sorted(wanted, key=lambda d: (d not in ends, ends.get(d, ""), d))
     if a.limit:
         targets = targets[:a.limit]
     target_docs = open_docs[open_docs["docket_id"].isin(targets)]
@@ -319,7 +339,10 @@ def main():
         print(f"{len(ahead)} dockets have more comments in the scan than the API reports (left as is):")
         for d, k, l in sorted(ahead, key=lambda x: x[2] - x[1])[:5]:
             print(f"  {d:<26} scan {k:,} vs API {l:,}")
-    if failed:
+    if out_of_budget.is_set():
+        print(f"WARNING: the API's hourly request allowance ran out; {len(failed)} dockets were not refreshed "
+              "and stay in the window for the next run")
+    elif failed:
         print(f"WARNING: no usable published total for {len(failed)} dockets (not refreshed): "
               + ", ".join(failed[:6]) + (" ..." if len(failed) > 6 else ""))
     if partial:

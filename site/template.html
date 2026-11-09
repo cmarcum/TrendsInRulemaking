@@ -38,7 +38,15 @@
   .tir-legend i { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
   .tir-legend i.dot { width: 10px; border-radius: 50%; background: var(--open); }
   .tir-legend [hidden] { display: none; }
-  .tir-summary { margin: 0 0 6px; color: var(--ink2); font-size: .85rem; min-height: 1.3em; }
+  .tir-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 6px; }
+  .tir-summary { margin: 0; color: var(--ink2); font-size: .85rem; min-height: 1.3em; }
+  .tir-tools button {
+    font: inherit; font-size: .85rem; color: var(--ink); background: var(--bg); min-height: 32px;
+    border: 1px solid var(--muted); border-radius: 6px; padding: 4px 12px; cursor: pointer;
+  }
+  .tir-tools button:hover:not(:disabled) { background: var(--hover); }
+  .tir-tools button:disabled { opacity: .45; cursor: default; }
+  .tir-tools :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .tir-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--grid); }
   .tir-list li { border-bottom: 1px solid var(--grid); }
   .tir-row {
@@ -126,7 +134,10 @@
     <span id="tir-open-key" hidden><i class="dot"></i>Open for comment</span>
   </div>
 
-  <p class="tir-summary" id="tir-summary" aria-live="polite"></p>
+  <div class="tir-tools">
+    <p class="tir-summary" id="tir-summary" aria-live="polite"></p>
+    <button type="button" id="tir-dl">Download this data (CSV)</button>
+  </div>
   <ol class="tir-list" id="tir-list"></ol>
   <div class="tir-pager" id="tir-pager">
     <button type="button" id="tir-prev">Previous</button>
@@ -258,7 +269,34 @@
     $('tir-prev').disabled = page <= 1;
     $('tir-next').disabled = page >= pages;
     $('tir-pager').hidden = pages <= 1;
+    $('tir-dl').disabled = !rows.length;
+    $('tir-dl').textContent = 'Download this data (CSV, ' + fmt(rows.length) + (rows.length === 1 ? ' docket)' : ' dockets)');
     notifyHeight();
+  }
+
+  // Exports every docket in the current view (all filters and the sort applied), not just the visible page.
+  function csvCell(v, text) {
+    let s = v == null ? '' : String(v);
+    if (text && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function download() {
+    const head = ['rank', 'docket_id', 'title', 'agency', 'year_opened', 'published_comments', 'first_posted',
+      'last_posted', 'comment_period_ends', 'comments_received', 'url'];
+    const body = rows.map((d) => [
+      d.rank, d.id, d.title, d.agency, d.year || '', d.n, d.first, d.last,
+      isOpen(d) ? d.open : '', isOpen(d) && d.received ? d.received : '',
+      'https://www.regulations.gov/docket/' + encodeURIComponent(d.id),
+    ].map((v, i) => csvCell(v, i === 2)).join(','));
+    const blob = new Blob(['﻿' + [head.join(',')].concat(body).join('\r\n') + '\r\n'],
+      { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'trends-in-rulemaking-dockets' + (rows.length === DATA.length ? '' : '-filtered') + '-' + todayISO + '.csv';
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   function refresh() { filterSort(); render(); }
@@ -295,6 +333,7 @@
   $('tir-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(refresh, 150); });
   ['tir-agency', 'tir-year', 'tir-min', 'tir-sort'].forEach((id) => $(id).addEventListener('change', refresh));
   $('tir-scale').addEventListener('change', render);
+  $('tir-dl').addEventListener('click', download);
   $('tir-prev').addEventListener('click', () => go(page - 1));
   $('tir-next').addEventListener('click', () => go(page + 1));
   $('tir-page').addEventListener('change', (e) => {
