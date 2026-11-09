@@ -229,7 +229,8 @@ def main():
                        columns=["docket_id", "posted_year", "published_comments", "first_posted",
                                 "last_posted", "first_received"])
     out["posted_year"] = out["posted_year"].astype("Int64")
-    out.to_csv(os.path.join(a.out, "_topup_scan.csv"), index=False)
+    out.sort_values(["docket_id", "posted_year"], na_position="last").to_csv(
+        os.path.join(a.out, "_topup_scan.csv"), index=False)
     pd.DataFrame(new_rule, columns=["docket_id", "agency_code", "docket_title"]).to_csv(
         os.path.join(a.out, "_topup_dockets.csv"), index=False)
     api_topup = os.path.join(a.out, "_api_topup_scan.csv")

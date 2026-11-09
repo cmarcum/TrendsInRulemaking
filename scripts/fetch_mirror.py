@@ -137,6 +137,7 @@ def scan_docket_years(con, comments, dockets, cache, reuse):
         WHERE lower(d.docket_type) = 'rulemaking'
         GROUP BY 1, 2
     """).df()
+    df = df.sort_values(["docket_id", "posted_year"], na_position="last").reset_index(drop=True)
     df.to_csv(cache, index=False)
     return df
 
@@ -154,6 +155,7 @@ def stage_fetch(con, comments, dockets, out_dir, reuse):
     cache = os.path.join(out_dir, "_docket_year_scan.csv")
     dy = scan_docket_years(con, comments, dockets, cache, reuse)
     dk = rulemaking_dockets(con, dockets)
+    dk = dk.sort_values("docket_id").reset_index(drop=True)
     dk.to_csv(os.path.join(out_dir, "_rulemaking_dockets.csv"), index=False)
     for stale in ("_topup_scan.csv", "_topup_dockets.csv", "_api_topup_scan.csv"):
         if os.path.exists(os.path.join(out_dir, stale)):
