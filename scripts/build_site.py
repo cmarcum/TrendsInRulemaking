@@ -20,9 +20,11 @@ Run from anywhere: python scripts/build_site.py
 """
 
 import argparse
+import datetime
 import json
 import os
 import sys
+import datetime
 
 try:
     import pandas as pd
@@ -118,7 +120,8 @@ def build(ranked, template, build_dir, data_dir):
     payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     note = (scope_note(build_dir) + " " + open_note(ranked, data_dir)).strip()
     return (html.replace("__DATA__", payload).replace("__ASOF__", asof)
-                .replace("__OPEN_NOTE__", note).replace("__N__", f"{len(rows):,}"))
+                .replace("__OPEN_NOTE__", note).replace("__N__", f"{len(rows):,}")
+                .replace("__BUILT__", datetime.datetime.now(datetime.timezone.utc).strftime("%B %d, %Y")))
 
 
 def main():

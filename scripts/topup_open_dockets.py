@@ -6,11 +6,11 @@ last run and any rulemaking dockets that opened since.
 
 An open docket gains comments every day, so the mirror and even the raw
 Mirrulations bucket (see topup_from_mirrulations.py) can be a day or more
-behind. A docket that closes can still be missing its last comments, so
-dockets whose comment period ended after the previous run (--since, by default
-the api_checked_on date in the previous _open_dockets.csv) are refreshed once
-more and then dropped from the open list. Dockets that are neither open nor
-recently closed are not touched, and their earlier refresh in
+behind. A docket that closes can take an agency up to 30 days to finish
+posting, so every run also refreshes dockets whose comment period ended within
+the last --recent-days (30), or since the previous run if that was longer ago,
+and so do dockets added since the last full pull (_topup_dockets.csv). Dockets
+that are none of these are not touched, and their earlier refresh in
 _api_topup_scan.csv is carried forward. For these dockets, this script:
 
   1. asks the API for the docket's total number of PUBLISHED comments
@@ -29,10 +29,11 @@ has started and ends in the future, read from the mirror's documents table
 --max-open-days away (placeholders such as 2099) are ignored. Withdrawn
 documents are ignored.
 
-Dockets the mirror does not list as rulemaking yet (because it is a day or
-more behind) are looked up in the mirror's dockets table and, if still absent
-and holding a proposed or final rule document, in the API; those that are
-Rulemaking are appended to _topup_dockets.csv. Dockets whose ID contains FRDOC
+Rulemaking dockets that appeared in the mirror's dockets table since the last
+full pull are appended to _topup_dockets.csv whether or not they have a
+comment period. So are dockets with a comment period in the window that the
+mirror's dockets table does not have yet (it can be a day or more behind) and
+that the API confirms as Rulemaking. Dockets whose ID contains FRDOC
 or whose title mentions an information collection are skipped, as
 analysis/analyze_rulemaking_trends.R drops them anyway.
 
@@ -118,6 +119,15 @@ def excluded(docket_id, title):
     return "frdoc" in docket_id.lower() or bool(re.search(r"information\s+collection", title or "", re.I))
 
 
+def mirror_new_dockets(con, dockets_pq, known):
+    """Rulemaking dockets in the mirror's dockets table that the rulemaking list does not have yet."""
+    table = con.execute(f"""
+        SELECT docket_id, agency_code, title AS docket_title
+        FROM read_parquet('{dockets_pq}') WHERE lower(docket_type) = 'rulemaking'
+    """).df()
+    return table[~table["docket_id"].isin(known)].sort_values("docket_id").reset_index(drop=True)
+
+
 def find_new_rulemaking(con, dockets_pq, docs, known, key):
     """Rulemaking dockets in `docs` that the dockets list does not have yet: (docket_id, agency_code, docket_title)."""
     unknown = sorted(set(docs["docket_id"]) - known)
@@ -190,8 +200,12 @@ def main():
     ap.add_argument("--key-env", default="REGSGOV_API_KEY", help="environment variable holding the API key")
     ap.add_argument("--max-open-days", type=int, default=366,
                     help="ignore comment end dates further away than this (placeholder dates)")
+    ap.add_argument("--recent-days", type=int, default=30,
+                    help="also refresh dockets whose comment period ended within this many days "
+                         "(agencies can take that long to post every comment)")
     ap.add_argument("--since", help="YYYY-MM-DD: refresh dockets whose comment period ended after this date "
-                                    "(default: the api_checked_on date of the previous _open_dockets.csv)")
+                                    "(default: --recent-days ago, or the api_checked_on date of the previous "
+                                    "_open_dockets.csv if that is earlier)")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--limit", type=int, default=0, help="only query this many dockets (testing)")
     a = ap.parse_args()
@@ -206,7 +220,8 @@ def main():
 
     previous = pd.read_csv(listed, dtype=str) if os.path.exists(listed) else pd.DataFrame(columns=["docket_id"])
     checked_before = previous.get("api_checked_on", pd.Series(dtype=str)).dropna()
-    since_s = a.since or (checked_before.max() if len(checked_before) else today)
+    recent = (now - datetime.timedelta(days=a.recent_days)).date().isoformat()
+    since_s = a.since or (min(checked_before.max(), recent) if len(checked_before) else recent)
     since = datetime.datetime.fromisoformat(since_s).replace(tzinfo=datetime.timezone.utc)
 
     listing = pd.read_csv(os.path.join(a.out, "_rulemaking_dockets.csv"), dtype=str)
@@ -218,7 +233,11 @@ def main():
     if base.startswith("http"):
         con.execute("INSTALL httpfs; LOAD httpfs;")
     window = window_documents(con, base + "documents.parquet", since, now, a.max_open_days)
-    new = find_new_rulemaking(con, base + "dockets.parquet", window, set(titles), key)
+    from_mirror = mirror_new_dockets(con, base + "dockets.parquet", set(titles))
+    from_window = find_new_rulemaking(con, base + "dockets.parquet", window,
+                                      set(titles) | set(from_mirror["docket_id"]), key)
+    new = pd.concat([from_mirror, from_window], ignore_index=True)
+    print(f"{len(from_mirror):,} rulemaking dockets in the mirror are not on the list yet")
     if len(new):
         pd.concat([pd.read_csv(extra, dtype=str) if os.path.exists(extra) else None, new],
                   ignore_index=True).drop_duplicates("docket_id").to_csv(extra, index=False)
@@ -245,11 +264,13 @@ def main():
         totals = pd.concat([totals, pd.read_csv(topup, dtype={"docket_id": str})])
     have = totals.groupby("docket_id")["published_comments"].sum()
 
-    targets = sorted((set(opened["docket_id"]) | set(closed) | set(previous["docket_id"])) - skip)
+    added_since_pull = set(pd.read_csv(extra, dtype=str, usecols=["docket_id"])["docket_id"]) if os.path.exists(extra) else set()
+    targets = sorted((set(opened["docket_id"]) | set(closed) | set(previous["docket_id"]) | added_since_pull) - skip)
     if a.limit:
         targets = targets[:a.limit]
     target_docs = open_docs[open_docs["docket_id"].isin(targets)]
-    print(f"asking the API for {len(targets):,} dockets and {len(target_docs):,} open documents")
+    print(f"asking the API for {len(targets):,} dockets ({len(added_since_pull):,} added since the last full pull) "
+          f"and {len(target_docs):,} open documents")
     with cf.ThreadPoolExecutor(a.workers) as pool:
         live = dict(zip(targets, pool.map(lambda d: published_total(d, key), targets)))
         got = dict(zip(target_docs["document_id"], pool.map(lambda d: received_count(d, key),

@@ -37,7 +37,7 @@ To start from scratch, run `python scripts/fetch_mirror.py --fetch` (about two m
 
 ## What a refresh does
 
-The daily run only touches dockets that need it. It asks the API for dockets that are open now, that closed since the previous refresh, and rulemaking dockets that opened since, then adds the difference to the stored scan. Every other docket keeps the numbers from the last full pull. The weekly run (Sunday) first re-pulls the mirror and the raw bucket, which picks up late comments on older dockets. The refreshed files in `data/` are committed back to the repository, which is how the next run knows what it already checked.
+The daily run only touches dockets that need it. It asks the API for dockets that are open now, dockets whose comment period closed in the last 30 days (agencies can take that long to post every comment), and rulemaking dockets added since the last full pull, then adds the difference to the stored scan. New rulemaking dockets are added to the page whether or not they have a comment period. Every other docket keeps the numbers from the last full pull. The weekly run (Sunday) first re-pulls the mirror and the raw bucket, which picks up late comments on older dockets. The refreshed files in `data/` are committed back to the repository, which is how the next run knows what it already checked.
 
 A refresh can also be started by hand from the Actions tab, with an option for the full re-pull. A push that changes the page, the analysis or the workflow rebuilds and deploys without calling the API.
 
